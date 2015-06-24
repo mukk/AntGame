@@ -22,10 +22,13 @@ FoodScene::FoodScene()
 ,_foods()
 ,_eggs()
 ,_eCount(0)
+,_level(1)
+,_lvCount(0)
 ,_secondLabel(NULL)
 ,_antsLabel(NULL)
 ,_foodsLabel(NULL)
 ,_eggsLabel(NULL)
+,_lvLabel(NULL)
 {
     
 }
@@ -36,6 +39,7 @@ FoodScene::~FoodScene()
     CC_SAFE_RELEASE_NULL(_antsLabel);
     CC_SAFE_RELEASE_NULL(_foodsLabel);
     CC_SAFE_RELEASE_NULL(_eggsLabel);
+    CC_SAFE_RELEASE_NULL(_lvLabel);
 }
 
 Scene* FoodScene::createScene()
@@ -83,20 +87,22 @@ void FoodScene::update(float dt)
             _eCount += 1;
         }
         if (_eggs > 0) {
-            if (_eCount > 10) {
-                int eggs = static_cast<int>(_eggs);
-                eggs -= 1;
-                _eggs = eggs;
-                _eggsLabel->setString(StringUtils::toString(eggs));
-                UserDefault::getInstance()->setIntegerForKey("eggskey", eggs);
-                
-                int ants = static_cast<int>(_ants);
-                ants += 1;
-                _ants = ants;
-                _antsLabel->setString(StringUtils::toString(ants));
-                UserDefault::getInstance()->setIntegerForKey("antskey", ants);
-                
-                _eCount = 0;
+            if(_ants <= _aMax){
+                if (_eCount > 10) {
+                    int eggs = static_cast<int>(_eggs);
+                    eggs -= 1;
+                    _eggs = eggs;
+                    _eggsLabel->setString(StringUtils::toString(eggs));
+                    UserDefault::getInstance()->setIntegerForKey("eggskey", eggs);
+                    
+                    int ants = static_cast<int>(_ants);
+                    ants += 1;
+                    _ants = ants;
+                    _antsLabel->setString(StringUtils::toString(ants));
+                    UserDefault::getInstance()->setIntegerForKey("antskey", ants);
+                    
+                    _eCount = 0;
+                }
             }
         }
         
@@ -112,7 +118,38 @@ void FoodScene::update(float dt)
                 _deathCount = 0;
             }
         }
-        _fCount += 1;//食糧取得可能カウンター
+        //レベルアップ
+        if(_ants == _aMax){
+            _lvCount = 1;
+        }
+        if (_lvCount == 1) {
+            _level += 1;
+            int level = static_cast<int>(_level);
+            _lvLabel->setString(StringUtils::toString(level));
+            UserDefault::getInstance()->setIntegerForKey("levelkey", level);
+            
+            //レベルから最大値を取得
+            _aMax = _level*10;
+            _fMax = _level*800;
+            _eMax = _level*10;
+            
+            _lvCount = 0;
+        }
+        
+        //最大値の場合ラベルを赤く表示
+        if (_foods < _fMax) {
+            _foodsLabel->setColor(Color3B(255, 255, 255));
+        }else{
+            _foodsLabel->setColor(Color3B(255, 0, 0));
+        }
+        if (_eggs < _eMax) {
+            _eggsLabel->setColor(Color3B(255, 255, 255));
+        }else{
+            _eggsLabel->setColor(Color3B(255, 0, 0));
+        }
+
+
+        
         _count = 0;
     }
     
@@ -137,6 +174,12 @@ bool FoodScene::init()
     _foods = userDefault->getIntegerForKey("foodskey");
     _eggs = userDefault->getIntegerForKey("eggskey");
     _ants = userDefault->getIntegerForKey("antskey");
+    _level = userDefault->getIntegerForKey("levelkey");
+    
+    //レベルから最大値を取得
+    _aMax = _level*10;
+    _fMax = _level*800;
+    _eMax = _level*10;
     
     //背景
     auto background = Sprite::create("img/roombg.png");
@@ -169,6 +212,13 @@ bool FoodScene::init()
     this->setAntsLabel(antLabel);
     antLabel->setPosition(Vec2(size.width/2 - 80, size.height - 30));
     this->addChild(antLabel);
+    //レベル
+    int level = static_cast<int>(_level);
+    auto lvLabel = Label::createWithSystemFont(StringUtils::toString(level), "Arial", 16);
+    this->setLvLabel(lvLabel);
+    lvLabel->setPosition(Vec2(size.width/2 - 10, size.height - 30));
+    this->addChild(lvLabel);
+
     
     //タッチ
     auto listener = EventListenerTouchOneByOne::create();
@@ -183,7 +233,7 @@ bool FoodScene::init()
     //ボタン
     auto button = MenuItemImage::create("img/Lroom.png","img/Lroom.png",[](Ref* ref){
         //シーン移動
-        Director::getInstance()->replaceScene(MainScene::createScene());
+        Director::getInstance()->replaceScene(TransitionFade::create( 1.0f,MainScene::createScene()));
     });
     auto menu = Menu::create(button,NULL);
     menu->setPosition(Vec2(size.width - 50, 50));
@@ -191,20 +241,19 @@ bool FoodScene::init()
     
     //狩りボタン
     auto huntButton = MenuItemImage::create("img/btGetF.png","img/btGetF.png",[&](Ref* ref){
-        if (_fCount > 5) {//食糧取得カウンタが満たされていれば取得可能
+        if (_foods < _fMax) {//食糧が最大値でない場合
             int foods = static_cast<int>(_foods);
             foods += 10 * _ants;
             _foods = foods;
             _foodsLabel->setString(StringUtils::toString(foods));
-            UserDefault::getInstance()->setIntegerForKey("foodskey", foods);//アリの数だけ食糧を得る
+            UserDefault::getInstance()->setIntegerForKey("foodskey", foods);//アリの数*10だけ食糧を得る
         
-            int randNum = arc4random()%(_ants/3);//アリ全体の数/3　-　1の中のランダムな値
+            int randNum = arc4random()%(_ants/(3*_level));//アリ全体の数/3*レベルの中のランダムな値
             int ants = static_cast<int>(_ants);
             ants -= randNum;
             _ants = ants;
             _antsLabel->setString(StringUtils::toString(ants));
             UserDefault::getInstance()->setIntegerForKey("antskey", ants);//アリがランダムな値の分だけ死ぬ
-            _fCount = 5;
         }
 
     });
